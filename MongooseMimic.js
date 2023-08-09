@@ -70,7 +70,7 @@ class CqlTable {
 
         let CqlType = `CREATE TYPE IF NOT EXISTS ${Name.toLowerCase()} (\n`;
 
-        const extraTypes = [];
+        const ExtraTypes = [];
 
         for (const key of Keys) {
             const value = Obj[key];
@@ -89,11 +89,11 @@ class CqlTable {
 
                 const converted = this.convertObjectToCqlType(Name + "_" + newType, value);
 
-                for (const type of converted.extraTypes) {
-                    extraTypes.push(type);
+                for (const type of converted.ExtraTypes) {
+                    ExtraTypes.push(type);
                 }
 
-                extraTypes.push(converted.CqlType);
+                ExtraTypes.push(converted.CqlType);
 
                 continue;
             }
@@ -105,14 +105,14 @@ class CqlTable {
 
         return {
             CqlType,
-            extraTypes
+            ExtraTypes
         };
     }
 
     static convertObjToCqlTable(Name, Obj) {
         const Keys = Object.keys(Obj);
         let CqlTable = `CREATE TABLE IF NOT EXISTS ${Name.toLowerCase()} (\n`;
-        const indexes = [];
+        const Indexes = [];
         const Types = []; // CREATE TYPE IF NOT EXISTS <type name> for example, used for when theres an array of objects
         let primaryKeySet = false;
 
@@ -126,13 +126,16 @@ class CqlTable {
                 const valuetwo = value[0];
 
                 if (valuetwo.index) {
-                    indexes.push(`CREATE INDEX IF NOT EXISTS ${Name.toLowerCase()}_${snakeCaseKey}_index ON ${Name.toLowerCase()} (${snakeCaseKey});`);
+                    Indexes.push({
+                        Name,
+                        Key: snakeCaseKey
+                    })
                 }
 
                 if (!valuetwo.type && typeof valuetwo === 'object' && !Array.isArray(valuetwo)) {
                     const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, valuetwo);
 
-                    for (const type of converted.extraTypes) {
+                    for (const type of converted.ExtraTypes) {
                         Types.push(type);
                     }
 
@@ -153,14 +156,17 @@ class CqlTable {
             }
 
             if (value.index) {
-                indexes.push(`CREATE INDEX IF NOT EXISTS ${Name.toLowerCase()}_${snakeCaseKey}_index ON ${Name.toLowerCase()} (${snakeCaseKey});`);
+                Indexes.push({
+                    Name,
+                    Key: snakeCaseKey
+                });
             }
 
             if (!value.type || typeof value.type !== "function" && typeof value === 'object' && !Array.isArray(value)) {
                 if (Array.isArray(value.type)) {
                     const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, value.type[0], true);
 
-                    for (const type of converted.extraTypes) {
+                    for (const type of converted.ExtraTypes) {
                         Types.push(type);
                     }
 
@@ -170,7 +176,7 @@ class CqlTable {
                 } else {
                     const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, value, false);
 
-                    for (const type of converted.extraTypes) {
+                    for (const type of converted.ExtraTypes) {
                         Types.push(type);
                     }
 
@@ -185,28 +191,49 @@ class CqlTable {
             CqlTable += this.MappingToMap(value.type.name, snakeCaseKey, false, key === '_id', null, Boolean(value.ref) || key === '_id');
         }
 
+        CqlTable += `);`;
+
+        // { Name: 'user', Indexes: ['id', 'name']} is an example
+        const subs = {};
+
+        for (const index of Indexes) {
+            if (!subs[index.Name]) {
+                subs[index.Name] = {
+                    Name: index.Name,
+                    Indexes: []
+                };
+            }
+
+            subs[index.Name].Indexes.push(index.Key);
+        }
+
+        const NewIndxes = [];
+
+        for (const indox in subs) {
+            const index = subs[indox];
+
+            NewIndxes.push(`CREATE INDEX IF NOT EXISTS ${index.Name.toLowerCase()}_${index.Indexes[0]}_index ON ${index.Name.toLowerCase()} (${index.Indexes.join(', ')});`);
+        }
+
         if (!primaryKeySet) {
-            // grab the first index and that is the primary key
-            const firstIndex = indexes[0]
+            const firstIndex = NewIndxes[0]
             const regex = /\(([^)]+)\)?;$/g;
 
             const firstIndexName = regex.exec(firstIndex)?.[1];
 
             if (firstIndexName) {
-                indexes.shift();
+                Indexes.shift();
 
                 CqlTable += `\tPRIMARY KEY (${firstIndexName})\n`;
             } else {
-                console.log('No primary key set for', Name, firstIndex)
+                console.log('No primary key set for', Name, firstIndex, Indexes, NewIndxes);
             }
 
         }
 
-        CqlTable += `);`;
-
         return {
             CqlTable,
-            indexes,
+            Indexes: NewIndxes,
             Types,
         };
     }
