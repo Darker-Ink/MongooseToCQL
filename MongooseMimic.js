@@ -1,3 +1,7 @@
+const ReservedWords = [
+    'ADD', 'ALLOW', 'ALTER', 'AND', 'APPLY', 'ASC', 'AUTHORIZE', 'BATCH', 'BEGIN', 'BY', 'COLUMNFAMILY', 'CREATE', 'DELETE', 'DESC', 'DESCRIBE', 'DROP', 'ENTRIES', 'EXECUTE', 'FROM', 'FULL', 'GRANT', 'IF', 'IN', 'INDEX', 'INFINITY', 'INSERT', 'INTO', 'KEYSPACE', 'LIMIT', 'MODIFY', 'NAN', 'NORECURSIVE', 'NOT', 'NULL', 'OF', 'ON', 'OR', 'ORDER', 'PRIMARY', 'RENAME', 'REPLACE', 'REVOKE', 'SCHEMA', 'SELECT', 'SET', 'TABLE', 'TO', 'TOKEN', 'TRUNCATE', 'UNLOGGED', 'UPDATE', 'USE', 'USING', 'VIEW', 'WHERE', 'WITH'
+].map((word) => word.toLowerCase());
+
 class CqlTable {
     static convertStringToSnakeCase(str) {
         const CamelCaseRegex = /^(?:[a-z]+(?:[A-Z][a-z]*)*)$/g;
@@ -117,7 +121,12 @@ class CqlTable {
         let primaryKeySet = false;
 
         for (const key of Keys) {
-            const snakeCaseKey = key === '_id' ? 'id' : this.convertStringToSnakeCase(key);
+            let keyValue = key === '_id' ? 'id' : this.convertStringToSnakeCase(key);
+
+            if (ReservedWords.includes(keyValue.toLowerCase())) {
+                keyValue += '_';
+            }
+
             const value = Obj[key];
 
             primaryKeySet = key === '_id' ? true : primaryKeySet;
@@ -128,12 +137,12 @@ class CqlTable {
                 if (valuetwo.index) {
                     Indexes.push({
                         Name,
-                        Key: snakeCaseKey
-                    })
+                        Key: keyValue
+                    });
                 }
 
                 if (!valuetwo.type && typeof valuetwo === 'object' && !Array.isArray(valuetwo)) {
-                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, valuetwo);
+                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${keyValue}`, valuetwo);
 
                     for (const type of converted.ExtraTypes) {
                         Types.push(type);
@@ -141,7 +150,7 @@ class CqlTable {
 
                     Types.push(converted.CqlType);
 
-                    CqlTable += this.MappingToMap('type', snakeCaseKey, false, false, `${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, Boolean(valuetwo.ref));
+                    CqlTable += this.MappingToMap('type', keyValue, false, false, `${this.convertStringToSnakeCase(Name)}_${keyValue}`, Boolean(valuetwo.ref));
 
                     continue;
                 }
@@ -149,7 +158,7 @@ class CqlTable {
                 if (Array.isArray(valuetwo.type)) {
                     console.log('arraiy bio', Array.isArray(valuetwo.type));
                 } else {
-                    CqlTable += this.MappingToMap(valuetwo.type.name, snakeCaseKey, true, false, null, Boolean(valuetwo.ref));
+                    CqlTable += this.MappingToMap(valuetwo.type.name, keyValue, true, false, null, Boolean(valuetwo.ref));
                 }
 
                 continue;
@@ -158,13 +167,13 @@ class CqlTable {
             if (value.index) {
                 Indexes.push({
                     Name,
-                    Key: snakeCaseKey
+                    Key: keyValue
                 });
             }
 
             if (!value.type || typeof value.type !== "function" && typeof value === 'object' && !Array.isArray(value)) {
                 if (Array.isArray(value.type)) {
-                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, value.type[0], true);
+                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${keyValue}`, value.type[0], true);
 
                     for (const type of converted.ExtraTypes) {
                         Types.push(type);
@@ -172,9 +181,9 @@ class CqlTable {
 
                     Types.push(converted.CqlType);
 
-                    CqlTable += this.MappingToMap('type', snakeCaseKey, true, false, `${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, Boolean(value.ref));
+                    CqlTable += this.MappingToMap('type', keyValue, true, false, `${this.convertStringToSnakeCase(Name)}_${keyValue}`, Boolean(value.ref));
                 } else {
-                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, value, false);
+                    const converted = this.convertObjectToCqlType(`${this.convertStringToSnakeCase(Name)}_${keyValue}`, value, false);
 
                     for (const type of converted.ExtraTypes) {
                         Types.push(type);
@@ -182,13 +191,13 @@ class CqlTable {
 
                     Types.push(converted.CqlType);
 
-                    CqlTable += this.MappingToMap('type', snakeCaseKey, false, false, `${this.convertStringToSnakeCase(Name)}_${snakeCaseKey}`, Boolean(value.ref));
+                    CqlTable += this.MappingToMap('type', keyValue, false, false, `${this.convertStringToSnakeCase(Name)}_${keyValue}`, Boolean(value.ref));
                 }
 
                 continue;
             }
 
-            CqlTable += this.MappingToMap(value.type.name, snakeCaseKey, false, key === '_id', null, Boolean(value.ref) || key === '_id');
+            CqlTable += this.MappingToMap(value.type.name, keyValue, false, key === '_id', null, Boolean(value.ref) || key === '_id');
         }
 
         CqlTable += `);`;
@@ -216,7 +225,7 @@ class CqlTable {
         }
 
         if (!primaryKeySet) {
-            const firstIndex = NewIndxes[0]
+            const firstIndex = NewIndxes[0];
             const regex = /\(([^)]+)\)?;$/g;
 
             const firstIndexName = regex.exec(firstIndex)?.[1];
