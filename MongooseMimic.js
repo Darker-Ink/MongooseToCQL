@@ -200,7 +200,6 @@ class CqlTable {
             CqlTable += this.MappingToMap(value.type.name, keyValue, false, key === '_id', null, Boolean(value.ref) || key === '_id');
         }
 
-        CqlTable += `);`;
 
         // { Name: 'user', Indexes: ['id', 'name']} is an example
         const subs = {};
@@ -239,6 +238,8 @@ class CqlTable {
             }
 
         }
+
+        CqlTable += `);`;
 
         return {
             CqlTable,
